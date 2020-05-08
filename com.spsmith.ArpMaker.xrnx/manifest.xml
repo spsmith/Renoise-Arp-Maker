@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RenoiseScriptingTool doc_version="0">
+  <ApiVersion>6</ApiVersion>
+  <Id>com.spsmith.ArpMaker</Id>
+  <Version>1.0</Version>
+  <Author>spsmith [spsmith224@gmail.com]</Author>
+  <Name>Renoise Arp Maker</Name>
+  <Category>Tool Development</Category>
+  <Description>A XRNX tool that constructs phrases as a replacement for the existing Axx sample command.</Description>
+  <Homepage>https://github.com/spsmith/RenoiseArpMaker</Homepage>
+  <Icon>icon.png</Icon>
+  <Platform>Windows, Mac, Linux</Platform>
+</RenoiseScriptingTool>
