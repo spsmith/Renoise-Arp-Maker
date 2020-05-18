@@ -24,7 +24,7 @@ com.renoise.ExampleTool.xrnx/main.lua
 
 options = {
   --instrument to create phrases for
-  selected_instrument = 0x00,
+  selected_instrument = 0,
 
   --volume range from first to last note
   vol_min = 0x80,
@@ -35,7 +35,10 @@ options = {
   pan_max = 0x40,
 
   --glide value for each note
-  glide = 0xff
+  glide = 0xff,
+
+  --LPB (speed)
+  lpb = 4
 }
 
 --------------------------------------------------------------------------------
@@ -62,6 +65,10 @@ renoise.tool():add_menu_entry {
 -- functions
 --------------------------------------------------------------------------------
 
+function lerp(a,b ,t)
+  return a * (1 - t) + b * t
+end
+
 --show status message
 function show_status(message)
   renoise.app():show_status(message)
@@ -73,6 +80,78 @@ function count_instruments()
   local num_instruments = 0
   for _ in pairs(renoise.song().instruments) do num_instruments = num_instruments + 1 end
   return num_instruments
+end
+
+function count_phrases(instrument)
+  local num_phrases = 0
+  for _ in pairs(instrument.phrases) do num_phrases = num_phrases + 1 end
+  return num_phrases
+end
+
+--arp making functions
+function make_arps()
+  --show_status(string.format("making arps! options are: %d, %d, %d, %d, %d, %d", options.selected_instrument, options.vol_min, options.vol_max, options.pan_min, options.pan_max, options.glide))
+
+  create_phrases()
+
+  for i = 1, renoise.Instrument.MAX_NUMBER_OF_PHRASES - 1 do
+    --leave the first phrase alone
+    construct_phrase(i)
+  end
+end
+
+function create_phrases()
+  local instrument = renoise.song():instrument(options.selected_instrument + 1)
+
+  local initial_phrases = count_phrases(instrument)
+
+  --create the max number of phrases
+  for i = initial_phrases + 1, renoise.Instrument.MAX_NUMBER_OF_PHRASES do
+      instrument:insert_phrase_at(i)
+  end
+end
+
+function construct_phrase(phrase_number)
+  show_status(string.format("constructing phrase %d", phrase_number))
+
+  --get the instrument
+  local instrument = renoise.song():instrument(options.selected_instrument + 1)
+
+  --get the phrase and clear it
+  local phrase = instrument:phrase(phrase_number + 1)
+  phrase:clear()
+  
+  --set phrase settings
+  phrase.number_of_lines = 6
+  phrase.visible_note_columns = 1
+  phrase.visible_effect_columns = 1
+  phrase.looping = true
+  phrase.autoseek = true
+  phrase.panning_column_visible = true
+  phrase.sample_effects_column_visible = true
+
+  --note 1: base note
+  phrase.lines[1]:note_column(1).note_value = 49
+  phrase.lines[1]:note_column(1).volume_value = options.vol_min
+  phrase.lines[1]:note_column(1).panning_value = options.pan_min
+  phrase.lines[1]:effect_column(1).number_string = '0G'
+  phrase.lines[1]:effect_column(1).amount_value = options.glide
+
+  --note 2: first arp note
+  local note2 = math.floor(phrase_number / 16)
+  phrase.lines[3]:note_column(1).note_value = 49 + note2
+  phrase.lines[3]:note_column(1).volume_value = math.floor(lerp(options.vol_min, options.vol_max, .5))
+  phrase.lines[3]:note_column(1).panning_value = math.floor(lerp(options.pan_min, options.pan_max, .5))
+  phrase.lines[3]:effect_column(1).number_string = '0G'
+  phrase.lines[3]:effect_column(1).amount_value = options.glide
+
+  --note 3: second arp note
+  local note3 = phrase_number % 16
+  phrase.lines[5]:note_column(1).note_value = 49 + note3
+  phrase.lines[5]:note_column(1).volume_value = options.vol_max
+  phrase.lines[5]:note_column(1).panning_value = options.pan_max
+  phrase.lines[5]:effect_column(1).number_string = '0G'
+  phrase.lines[5]:effect_column(1).amount_value = options.glide
 end
 
 -- show_tool_window
@@ -111,7 +190,7 @@ function show_tool_window()
 
   ---- CONTROLS
 
-  --valuebox for instrument selection
+  --valueboxes
   local instrument_valuebox = vb:row {
     vb:text {
       width = TEXT_ROW_WIDTH,
@@ -305,13 +384,21 @@ function show_tool_window()
     }
   }
 
-  -- close button
-    
-  local close_button_row = vb:horizontal_aligner {
+  -- buttons
+  local button_row = vb:horizontal_aligner {
     mode = "right",
     
     vb:button {
-      text = "Close",
+      text = "Make Arps",
+      width = 60,
+      height = DEFAULT_DIALOG_BUTTON_HEIGHT,
+      released = function()
+        make_arps()
+      end,
+    },
+
+    vb:button {
+      text = "Done",
       width = 60,
       height = DEFAULT_DIALOG_BUTTON_HEIGHT,
       notifier = function()
@@ -352,10 +439,13 @@ function show_tool_window()
     },
     
     -- close
-    close_button_row
+    button_row
   }
   
-  
+  --set some default values on start
+  options.selected_instrument = renoise.song().selected_instrument_index - 1
+  options.lpb = renoise.song().transport.lpb * 3
+
   -- DIALOG
   
   control_example_dialog = renoise.app():show_custom_dialog(
