@@ -6,7 +6,7 @@
   <Author>spsmith [spsmith224@gmail.com]</Author>
   <Name>Renoise Arp Maker</Name>
   <Category>Tool Development</Category>
-  <Description>A XRNX tool that constructs phrases as a replacement for the existing Axx sample command.</Description>
+  <Description>A phrase-based replacement for the AXX sample command.</Description>
   <Homepage>https://github.com/spsmith/RenoiseArpMaker</Homepage>
   <Icon>icon.png</Icon>
   <Platform>Windows, Mac, Linux</Platform>
