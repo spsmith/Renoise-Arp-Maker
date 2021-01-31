@@ -145,6 +145,7 @@ function load_settings(instrument)
 
     --load existing settings
     settings.offset.value = phrase.lines[1].note_columns[1].effect_amount_value
+    settings.mode.value = phrase.lines[2]:note_column(1).delay_value
     settings.length.value = phrase.number_of_lines / 2
     settings.vol_min.value = phrase.lines[1]:note_column(1).volume_value
     settings.vol_max.value = math.min(phrase.lines[5]:note_column(1).volume_value, 0x80) --value is 255 when column is empty
@@ -157,6 +158,7 @@ function load_settings(instrument)
     end
     settings.glide.value = phrase.lines[1]:effect_column(1).amount_value
     settings.speed.value = phrase.lpb / renoise.song().transport.lpb
+
   else
     --load default settings
     --show_status(("Loading default settings"))
@@ -174,8 +176,6 @@ end
 
 --arp making functions
 function make_arps(instrument)
-  --show_status(string.format("making arps! settings are: %d, %d, %d, %d, %d, %d", settings.selected_instrument, settings.vol_min, settings.vol_max, settings.pan_min, settings.pan_max, settings.glide))
-
   --make sure there are enough empty phrases for this instrument
   create_phrases(instrument)
 
@@ -183,17 +183,6 @@ function make_arps(instrument)
   for i = 1, renoise.Instrument.MAX_NUMBER_OF_PHRASES - 1 do
     --leave the first phrase alone
     construct_phrase(instrument, i)
-  end
-end
-
-function make_arps_new(instrument)
-  --make sure there are enough empty phrases for this instrument
-  create_phrases(instrument)
-
-  --fill in phrases with arp data
-  for i = 1, renoise.Instrument.MAX_NUMBER_OF_PHRASES - 1 do
-    --leave the first phrase alone
-    construct_phrase_new(instrument, i)
   end
 end
 
@@ -208,14 +197,13 @@ function create_phrases(instrument)
   end
 end
 
---construct an arp phrase (chord is based on phrase number)
 function construct_phrase(instrument, phrase_number)
   --get the phrase and clear it
   local phrase = instrument:phrase(phrase_number + 1)
   phrase:clear()
   
   --set phrase settings
-  phrase.number_of_lines = 6
+  phrase.number_of_lines = settings.length.value * 2 --two lines per note
   phrase.visible_note_columns = 1
   phrase.visible_effect_columns = 1
   phrase.looping = settings.loop.value
@@ -223,73 +211,10 @@ function construct_phrase(instrument, phrase_number)
   phrase.panning_column_visible = true
   phrase.sample_effects_column_visible = true
   phrase.lpb = renoise.song().transport.lpb * settings.speed.value
-
-  local stereo_mul = 1
-  if settings.stereo_direction.value == 2 then
-    stereo_mul = -1
-  end
-
-  --note 1: root note
-  phrase.lines[1]:note_column(1).note_value = 49
-  --vol, pan
-  phrase.lines[1]:note_column(1).volume_value = settings.vol_min.value
-  phrase.lines[1]:note_column(1).panning_value = 0x40 - (stereo_mul * settings.stereo_spread.value)
-  --sample offset
-  phrase.lines[1].note_columns[1].effect_number_string = '0S'
-  phrase.lines[1].note_columns[1].effect_amount_value = settings.offset.value
-  if settings.glide.value > 0 then
-    --glide
-    phrase.lines[1]:effect_column(1).number_string = '0G'
-    phrase.lines[1]:effect_column(1).amount_value = settings.glide.value
-  end
-
-  --note 2: first arp note
-  local note2 = math.floor(phrase_number / 16)
-  phrase.lines[3]:note_column(1).note_value = 49 + note2
-  --vol, pan
-  phrase.lines[3]:note_column(1).volume_value = math.floor(lerp(settings.vol_min.value, settings.vol_max.value, .5))
-  phrase.lines[3]:note_column(1).panning_value = 0x40
-  if settings.glide.value > 0 then
-    --glide
-    phrase.lines[3]:effect_column(1).number_string = '0G'
-    phrase.lines[3]:effect_column(1).amount_value = settings.glide.value
-  else
-    --sample offset
-    phrase.lines[3].note_columns[1].effect_number_string = '0S'
-    phrase.lines[3].note_columns[1].effect_amount_value = settings.offset.value
-  end
-
-  --note 3: second arp note
-  local note3 = phrase_number % 16
-  phrase.lines[5]:note_column(1).note_value = 49 + note3
-  --vol, pan
-  phrase.lines[5]:note_column(1).volume_value = settings.vol_max.value
-  phrase.lines[5]:note_column(1).panning_value = 0x40 + (stereo_mul * settings.stereo_spread.value)
-  if settings.glide.value > 0 then
-    --glide
-    phrase.lines[5]:effect_column(1).number_string = '0G'
-    phrase.lines[5]:effect_column(1).amount_value = settings.glide.value
-  else
-    --sample offset
-    phrase.lines[5].note_columns[1].effect_number_string = '0S'
-    phrase.lines[5].note_columns[1].effect_amount_value = settings.offset.value
-  end
-end
-
-function construct_phrase_new(instrument, phrase_number)
-  --get the phrase and clear it
-  local phrase = instrument:phrase(phrase_number + 1)
-  phrase:clear()
   
-  --set phrase settings
-  phrase.number_of_lines = settings.length.value * 2
-  phrase.visible_note_columns = 1
-  phrase.visible_effect_columns = 1
-  phrase.looping = settings.loop.value
-  phrase.autoseek = true
-  phrase.panning_column_visible = true
-  phrase.sample_effects_column_visible = true
-  phrase.lpb = renoise.song().transport.lpb * settings.speed.value
+  --store the arp mode in the delay value for line 2 - ignored when playing the phrase, also not visible by default
+  phrase.lines[2]:note_column(1).delay_value = settings.mode.value
+  phrase.delay_column_visible = false
 
   --construct notes
   for i = 1, settings.length.value do
@@ -302,12 +227,27 @@ function construct_note(phrase, phrase_number, note_number)
   --note_number should start at 1
 
   --get the line
-  local line = phrase.lines[(note_number * 2) - 1]
+  local two_note_arp = math.floor(phrase_number / 16) == 0 and settings.length.value % 3 == 0 and settings.mode.value ~= 3  --special settings for arps with only two pitches
+  local line_number = (note_number * 2) - 1
+  if two_note_arp then
+    if note_number % 3 == 2 then
+      line_number = (note_number * 2) --space the second note halfway
+    elseif note_number % 3 == 0 then
+      return --skip the third note
+    end
+  end
+  local line = phrase.lines[line_number]
   local note_columns = line.note_columns[1]
   local note_column = line:note_column(1)
   local effect_column = line:effect_column(1)
   local t = (note_number - 1) / (settings.length.value - 1)
-  local stereo_t = (t * 2) - 1
+  if two_note_arp then
+    if note_number % 3 == 1 then
+      t = 0
+    elseif note_number % 3 == 2 then
+      t = 1
+    end
+  end
   local stereo_mul = 1
   if settings.stereo_direction.value == 2 then
     stereo_mul = -1
@@ -340,7 +280,6 @@ function construct_note(phrase, phrase_number, note_number)
       note_index = note_number
     end
   end
-  show_status(("%s"):format(note_index))
   note_column.note_value = root + all_notes[note_index]
 
   --offset
@@ -353,7 +292,7 @@ function construct_note(phrase, phrase_number, note_number)
   note_column.volume_value = lerp(settings.vol_min.value, settings.vol_max.value, t)
 
   --pan
-  note_column.panning_value = 0x40 + (stereo_mul * lerp(-settings.stereo_spread.value, settings.stereo_spread.value, stereo_t))
+  note_column.panning_value = 0x40 + (stereo_mul * lerp(-settings.stereo_spread.value, settings.stereo_spread.value, t))
 
   --glide
   if math.floor(settings.glide.value) > 0 then
@@ -462,7 +401,7 @@ function show_tool_window()
   local length_valuebox = vb:row{
     vb:text{
       width = TEXT_ROW_WIDTH,
-      text = "Arp Length"
+      text = "Notes"
     },
 
     vb:valuebox{
@@ -476,7 +415,7 @@ function show_tool_window()
   local mode_switch = vb:row{
     vb:text{
       width = TEXT_ROW_WIDTH,
-      text = "Arp Mode"
+      text = "Mode"
     },
 
     vb:switch{
@@ -598,15 +537,6 @@ function show_tool_window()
     },
 
     vb:button {
-      text = "ApplyNew",
-      width = 60,
-      height = DEFAULT_DIALOG_BUTTON_HEIGHT,
-      released = function()
-        make_arps_new(renoise.song():instrument(settings.selected_instrument.value + 1))
-      end,
-    },
-
-    vb:button {
       text = "Clear",
       width = 60,
       height = DEFAULT_DIALOG_BUTTON_HEIGHT,
@@ -642,21 +572,21 @@ function show_tool_window()
 
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         offset_valuebox,
-        length_valuebox,
-        mode_switch,
-
+        glide_slider,
+        
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         vol_min_slider,
         vol_max_slider,
-
-        vb:space {height = DEFAULT_CONTROL_HEIGHT},
+        
+        --vb:space {height = DEFAULT_CONTROL_HEIGHT},
         stereo_slider,
         stereo_direction,
-
+        
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
-        glide_slider,
-
-        vb:space {height = DEFAULT_CONTROL_HEIGHT},
+        length_valuebox,
+        mode_switch,
+        
+        --vb:space {height = DEFAULT_CONTROL_HEIGHT},
         speed_valuebox,
         loop_checkbox,
 
