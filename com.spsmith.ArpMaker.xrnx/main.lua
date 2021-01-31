@@ -28,13 +28,28 @@ local function direction_arrow(value)
   end
 end
 
+local function mode_arrow(value)
+  if value <= 1 then return "→"
+  elseif value == 2 then return "←"
+  else return "⟷"
+  end
+end
+
 --settings document
 local settings = renoise.Document.create("Settings"){
   --instrument that will be edited
   selected_instrument = 0,
+  selected_instrument_name = "Instrument",
 
   --initial sample offset (S command)
   offset = 0x00,
+
+  --arp length
+  length = 3,
+  max_octaves = 4,
+
+  --arp mode
+  mode = 1,
   
   --volume range from first to last note
   vol_min = 0x80,
@@ -55,64 +70,16 @@ local settings = renoise.Document.create("Settings"){
 }
 
 local function selected_instrument_notifier()
-  local value = settings.selected_instrument.value
-
   --load settings for the selected instrument
-  load_settings(renoise.song():instrument(value + 1))
-
-  show_status(("Selected instrument is '%s'"):format(value))
+  load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
 end
 
-local function offset_notifier()
-  local value = settings.offset.value
-  
-  show_status(("Offset is '%s'"):format(value))
-end
-
-local function vol_min_notifier()
-  local value = settings.vol_min.value
-  
-  show_status(("Volume (min) is '%s'"):format(value))
-end
-
-local function vol_max_notifier()
-  local value = settings.vol_max.value
-  
-  show_status(("Volume (max) is '%s'"):format(value))
-end
-
-local function stereo_spread_notifier()
-  local value = settings.stereo_spread.value
-  
-  show_status(("Stereo spread is '%s'"):format(value))
-end
-
-local function stereo_direction_notifier()
-  local value = settings.stereo_direction.value
-  
-  show_status(("Stereo direction is '%s'"):format(value))
-end
-
-local function glide_notifier()
-  local value = settings.glide.value
-  
-  show_status(("Glide amount is '%s'"):format(value))
-end
-
-local function speed_notifier()
-  local value = settings.speed.value
-  
-  show_status(("Speed value is '%s'"):format(value))
+local function mode_notifier()
+  show_status(("Mode is %s (%d)"):format(mode_arrow(settings.mode.value), settings.mode.value))
 end
 
 settings.selected_instrument:add_notifier(selected_instrument_notifier)
-settings.offset:add_notifier(offset_notifier)
-settings.vol_min:add_notifier(vol_min_notifier)
-settings.vol_max:add_notifier(vol_max_notifier)
-settings.stereo_spread:add_notifier(stereo_spread_notifier)
-settings.stereo_direction:add_notifier(stereo_direction_notifier)
-settings.glide:add_notifier(glide_notifier)
-settings.speed:add_notifier(speed_notifier)
+settings.mode:add_notifier(mode_notifier)
 
 --------------------------------------------------------------------------------
 -- menu entries
@@ -165,18 +132,20 @@ end
 
 --load arp values from the current instrument into settings
 function load_settings(instrument)
-  --first make sure this instrument has arps already
-  local phrases = count_phrases(instrument)
-  if phrases == renoise.Instrument.MAX_NUMBER_OF_PHRASES then
-    --load values from current arps
-    show_status(("Loading settings from '%s'"):format(instrument.name))
+  --update selected instrument name
+  settings.selected_instrument_name = instrument.name
+
+  --check if this instrument has arps already
+  if count_phrases(instrument) == renoise.Instrument.MAX_NUMBER_OF_PHRASES then
+    --load values from current instrument
+    --show_status(("Loading settings from '%s'"):format(instrument.name))
 
     --look at phrase 037
     local phrase = instrument:phrase(038) --maybe wrong index idc
-    local line1 = phrase.lines[1]
 
-    --load offset, vol, pan, glide, lpb settings
+    --load existing settings
     settings.offset.value = phrase.lines[1].note_columns[1].effect_amount_value
+    settings.length.value = phrase.number_of_lines / 2
     settings.vol_min.value = phrase.lines[1]:note_column(1).volume_value
     settings.vol_max.value = math.min(phrase.lines[5]:note_column(1).volume_value, 0x80) --value is 255 when column is empty
     local ss = 0x40 - phrase.lines[1]:note_column(1).panning_value
@@ -187,11 +156,13 @@ function load_settings(instrument)
       settings.stereo_direction.value = 2
     end
     settings.glide.value = phrase.lines[1]:effect_column(1).amount_value
+    settings.speed.value = phrase.lpb / renoise.song().transport.lpb
   else
     --load default settings
-    show_status(("Loading default settings"))
+    --show_status(("Loading default settings"))
 
     settings.offset.value = 0x00
+    settings.length.value = 3
     settings.vol_min.value = 0x80
     settings.vol_max.value = 0x80
     settings.stereo_spread.value = 0x00
@@ -215,6 +186,17 @@ function make_arps(instrument)
   end
 end
 
+function make_arps_new(instrument)
+  --make sure there are enough empty phrases for this instrument
+  create_phrases(instrument)
+
+  --fill in phrases with arp data
+  for i = 1, renoise.Instrument.MAX_NUMBER_OF_PHRASES - 1 do
+    --leave the first phrase alone
+    construct_phrase_new(instrument, i)
+  end
+end
+
 --initialize this instrument with the max number of phrases
 function create_phrases(instrument)
   --local instrument = renoise.song():instrument(settings.selected_instrument + 1)
@@ -228,11 +210,6 @@ end
 
 --construct an arp phrase (chord is based on phrase number)
 function construct_phrase(instrument, phrase_number)
-  show_status(string.format("Constructing phrase %d for %s...", phrase_number, instrument.name))
-
-  --get the instrument
-  --local instrument = renoise.song():instrument(settings.selected_instrument + 1)
-
   --get the phrase and clear it
   local phrase = instrument:phrase(phrase_number + 1)
   phrase:clear()
@@ -296,6 +273,92 @@ function construct_phrase(instrument, phrase_number)
     --sample offset
     phrase.lines[5].note_columns[1].effect_number_string = '0S'
     phrase.lines[5].note_columns[1].effect_amount_value = settings.offset.value
+  end
+end
+
+function construct_phrase_new(instrument, phrase_number)
+  --get the phrase and clear it
+  local phrase = instrument:phrase(phrase_number + 1)
+  phrase:clear()
+  
+  --set phrase settings
+  phrase.number_of_lines = settings.length.value * 2
+  phrase.visible_note_columns = 1
+  phrase.visible_effect_columns = 1
+  phrase.looping = settings.loop.value
+  phrase.autoseek = true
+  phrase.panning_column_visible = true
+  phrase.sample_effects_column_visible = true
+  phrase.lpb = renoise.song().transport.lpb * settings.speed.value
+
+  --construct notes
+  for i = 1, settings.length.value do
+    construct_note(phrase, phrase_number, i)
+  end
+end
+
+function construct_note(phrase, phrase_number, note_number)
+  --various different outcomes based on settings
+  --note_number should start at 1
+
+  --get the line
+  local line = phrase.lines[(note_number * 2) - 1]
+  local note_columns = line.note_columns[1]
+  local note_column = line:note_column(1)
+  local effect_column = line:effect_column(1)
+  local t = (note_number - 1) / (settings.length.value - 1)
+  local stereo_t = (t * 2) - 1
+  local stereo_mul = 1
+  if settings.stereo_direction.value == 2 then
+    stereo_mul = -1
+  end
+
+  --pitch
+  local note_index
+  local root = 49
+  local notes = {0, math.floor(phrase_number / 16), phrase_number % 16}
+  local all_notes = {}
+  for i = 0, (settings.length.value) - 1 do
+    table.insert(all_notes, notes[(i % 3) + 1] + (math.floor(i / 3) * 12))
+  end
+  if settings.mode.value == 1 then
+    --forwards order
+    note_index = note_number
+  elseif settings.mode.value == 2 then
+    --reverse note order
+    note_index = settings.length.value - (note_number - 1)
+  elseif settings.mode.value == 3 then
+    --pingpong (reverse after midpoint)
+    local midpoint = math.ceil(settings.length.value / 2)
+    if note_number > midpoint then
+      if settings.length.value % 2 == 0 then
+        note_index = (settings.length.value - note_number) + 2
+      else
+        note_index = (settings.length.value - note_number) + 3 --doesn't really work with odd lengths
+      end
+    else
+      note_index = note_number
+    end
+  end
+  show_status(("%s"):format(note_index))
+  note_column.note_value = root + all_notes[note_index]
+
+  --offset
+  if note_number == 1 or math.floor(settings.glide.value) == 0 then
+    note_columns.effect_number_string = '0S'
+    note_columns.effect_amount_value = settings.offset.value
+  end
+
+  --volume
+  note_column.volume_value = lerp(settings.vol_min.value, settings.vol_max.value, t)
+
+  --pan
+  note_column.panning_value = 0x40 + (stereo_mul * lerp(-settings.stereo_spread.value, settings.stereo_spread.value, stereo_t))
+
+  --glide
+  if math.floor(settings.glide.value) > 0 then
+    effect_column.number_string = '0G'
+    effect_column.amount_value = settings.glide.value
   end
 end
 
@@ -363,7 +426,14 @@ function show_tool_window()
   local instrument_namebox = vb:row{
     vb:text{
       width = TEXT_ROW_WIDTH,
-      text = ("[%s]"):format(renoise.song():instrument(settings.selected_instrument.value + 1).name)
+      --text = ("[%s]"):format(renoise.song():instrument(settings.selected_instrument.value + 1).name)
+      text = ""
+    },
+
+    vb:textfield{
+      active = false,
+      value = settings.selected_instrument_name.value,
+      --bind = settings.selected_instrument_name
     }
   }
 
@@ -386,6 +456,33 @@ function show_tool_window()
       tonumber = function(str) 
         return tonumber(str, 0x10)
       end
+    }
+  }
+
+  local length_valuebox = vb:row{
+    vb:text{
+      width = TEXT_ROW_WIDTH,
+      text = "Arp Length"
+    },
+
+    vb:valuebox{
+      bind = settings.length,
+      min = 3,
+      max = 12,
+      steps = {1, 3}
+    }
+  }
+
+  local mode_switch = vb:row{
+    vb:text{
+      width = TEXT_ROW_WIDTH,
+      text = "Arp Mode"
+    },
+
+    vb:switch{
+      bind = settings.mode,
+      width = 100,
+      items = {mode_arrow(1), mode_arrow(2), mode_arrow(3)}
     }
   }
 
@@ -439,10 +536,9 @@ function show_tool_window()
       width = TEXT_ROW_WIDTH,
       text = "Stereo Direction"
     },
---
+
     vb:switch{
       bind = settings.stereo_direction,
-      id = "stereo_direction",
       width = 100,
       items = {direction_arrow(1), direction_arrow(2)}
     }
@@ -502,11 +598,20 @@ function show_tool_window()
     },
 
     vb:button {
-      text = "Load",
+      text = "ApplyNew",
       width = 60,
       height = DEFAULT_DIALOG_BUTTON_HEIGHT,
       released = function()
-        load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
+        make_arps_new(renoise.song():instrument(settings.selected_instrument.value + 1))
+      end,
+    },
+
+    vb:button {
+      text = "Clear",
+      width = 60,
+      height = DEFAULT_DIALOG_BUTTON_HEIGHT,
+      released = function()
+        clear_arps(renoise.song():instrument(settings.selected_instrument.value + 1))
       end,
     },
 
@@ -537,6 +642,8 @@ function show_tool_window()
 
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         offset_valuebox,
+        length_valuebox,
+        mode_switch,
 
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         vol_min_slider,
@@ -551,7 +658,9 @@ function show_tool_window()
 
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         speed_valuebox,
-        loop_checkbox
+        loop_checkbox,
+
+        vb:space {height = DEFAULT_CONTROL_HEIGHT}
       },
 
     },
