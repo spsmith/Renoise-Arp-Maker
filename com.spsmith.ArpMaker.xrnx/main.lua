@@ -45,6 +45,86 @@ options = {
   lpb = 4
 }
 
+--settings document
+local settings = renoise.Document.create("Settings"){
+  --instrument that will be edited
+  selected_instrument = 0,
+
+  --initial sample offset (S command)
+  offset = 0x00,
+
+  --volume range from first to last note
+  vol_min = 0x80,
+  vol_max = 0x80,
+
+  --stereo spread
+  stereo_spread = 0x00,
+  stereo_direction = "L ➔ R",
+
+  --glide value for each note (G command)
+  glide = 0xff,
+
+  --LPB multiplier (speed)
+  speed = 3
+}
+
+local function selected_instrument_notifier()
+  local value = settings.selected_instrument.value
+
+  show_status(("Selected instrument is '%s"):format(value))
+end
+
+local function offset_notifier()
+  local value = settings.offset.value
+
+  show_status(("Offset is '%s"):format(value))
+end
+
+local function vol_min_notifier()
+  local value = settings.vol_min.value
+
+  show_status(("Volume (min) is '%s"):format(value))
+end
+
+local function vol_max_notifier()
+  local value = settings.vol_max.value
+
+  show_status(("Volume (max) is '%s"):format(value))
+end
+
+local function stereo_spread_notifier()
+  local value = settings.stereo_spread.value
+
+  show_status(("Stereo spread is '%s"):format(value))
+end
+
+local function stereo_direction_notifier()
+  local value = settings.stereo_direction.value
+
+  show_status(("Stereo direction is '%s"):format(value))
+end
+
+local function glide_notifier()
+  local value = settings.glide.value
+
+  show_status(("Glide amount is '%s"):format(value))
+end
+
+local function speed_notifier()
+  local value = settings.speed.value
+
+  show_status(("Speed value is '%s"):format(value))
+end
+
+settings.selected_instrument:add_notifier(selected_instrument_notifier)
+settings.offset:add_notifier(offset_notifier)
+settings.vol_min:add_notifier(vol_min_notifier)
+settings.vol_max:add_notifier(vol_max_notifier)
+settings.stereo_spread:add_notifier(stereo_spread_notifier)
+settings.stereo_direction:add_notifier(stereo_direction_notifier)
+settings.glide:add_notifier(glide_notifier)
+settings.speed:add_notifier(speed_notifier)
+
 --------------------------------------------------------------------------------
 -- menu entries
 --------------------------------------------------------------------------------
