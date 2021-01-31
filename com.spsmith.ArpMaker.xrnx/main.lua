@@ -22,28 +22,11 @@ com.renoise.ExampleTool.xrnx/main.lua
 -- global variables
 --------------------------------------------------------------------------------
 
-options = {
-  --initial values:
-  --instrument to create phrases for
-  selected_instrument = 0,
-
-  --initial sample offset
-  offset = 0x00,
-
-  --volume range from first to last note
-  vol_min = 0x80,
-  vol_max = 0x80,
-
-  --stereo spread
-  stereo_spread = 0x00,
-  stereo_direction = "L ➔ R",
-
-  --glide value for each note
-  glide = 0xff,
-
-  --LPB (speed)
-  lpb = 4
-}
+local function direction_arrow(value)
+  if value <= 1 then return "L → R"
+  else return "L ← R"
+  end
+end
 
 --settings document
 local settings = renoise.Document.create("Settings"){
@@ -52,68 +35,74 @@ local settings = renoise.Document.create("Settings"){
 
   --initial sample offset (S command)
   offset = 0x00,
-
+  
   --volume range from first to last note
   vol_min = 0x80,
   vol_max = 0x80,
-
+  
   --stereo spread
   stereo_spread = 0x00,
-  stereo_direction = "L ➔ R",
-
+  stereo_direction = 1,
+  
   --glide value for each note (G command)
   glide = 0xff,
-
+  
   --LPB multiplier (speed)
-  speed = 3
+  speed = 3,
+
+  --loop
+  loop = true
 }
 
 local function selected_instrument_notifier()
   local value = settings.selected_instrument.value
 
-  show_status(("Selected instrument is '%s"):format(value))
+  --load settings for the selected instrument
+  load_settings(renoise.song():instrument(value + 1))
+
+  show_status(("Selected instrument is '%s'"):format(value))
 end
 
 local function offset_notifier()
   local value = settings.offset.value
-
-  show_status(("Offset is '%s"):format(value))
+  
+  show_status(("Offset is '%s'"):format(value))
 end
 
 local function vol_min_notifier()
   local value = settings.vol_min.value
-
-  show_status(("Volume (min) is '%s"):format(value))
+  
+  show_status(("Volume (min) is '%s'"):format(value))
 end
 
 local function vol_max_notifier()
   local value = settings.vol_max.value
-
-  show_status(("Volume (max) is '%s"):format(value))
+  
+  show_status(("Volume (max) is '%s'"):format(value))
 end
 
 local function stereo_spread_notifier()
   local value = settings.stereo_spread.value
-
-  show_status(("Stereo spread is '%s"):format(value))
+  
+  show_status(("Stereo spread is '%s'"):format(value))
 end
 
 local function stereo_direction_notifier()
   local value = settings.stereo_direction.value
-
-  show_status(("Stereo direction is '%s"):format(value))
+  
+  show_status(("Stereo direction is '%s'"):format(value))
 end
 
 local function glide_notifier()
   local value = settings.glide.value
-
-  show_status(("Glide amount is '%s"):format(value))
+  
+  show_status(("Glide amount is '%s'"):format(value))
 end
 
 local function speed_notifier()
   local value = settings.speed.value
-
-  show_status(("Speed value is '%s"):format(value))
+  
+  show_status(("Speed value is '%s'"):format(value))
 end
 
 settings.selected_instrument:add_notifier(selected_instrument_notifier)
@@ -141,7 +130,7 @@ settings.speed:add_notifier(speed_notifier)
 renoise.tool():add_menu_entry {
   name = "Main Menu:Tools:ArpMaker",
   invoke = function()
-    load_options(renoise.song():instrument(renoise.song().selected_instrument_index))
+    load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
     show_tool_window()
   end
 }
@@ -174,46 +163,47 @@ function count_phrases(instrument)
   return num_phrases
 end
 
---load arp values from the current instrument into options
-function load_options(instrument)
+--load arp values from the current instrument into settings
+function load_settings(instrument)
   --first make sure this instrument has arps already
   local phrases = count_phrases(instrument)
   if phrases == renoise.Instrument.MAX_NUMBER_OF_PHRASES then
     --load values from current arps
-    show_status(("Loading options from %s"):format(instrument.name))
+    show_status(("Loading settings from '%s'"):format(instrument.name))
 
     --look at phrase 037
     local phrase = instrument:phrase(038) --maybe wrong index idc
     local line1 = phrase.lines[1]
 
     --load offset, vol, pan, glide, lpb settings
-    options.offset = phrase.lines[1].note_columns[1].effect_amount_value
-    options.vol_min = phrase.lines[1]:note_column(1).volume_value
-    options.vol_max = math.min(phrase.lines[5]:note_column(1).volume_value, 0x80) --value is 255 when column is empty
+    settings.offset.value = phrase.lines[1].note_columns[1].effect_amount_value
+    settings.vol_min.value = phrase.lines[1]:note_column(1).volume_value
+    settings.vol_max.value = math.min(phrase.lines[5]:note_column(1).volume_value, 0x80) --value is 255 when column is empty
     local ss = 0x40 - phrase.lines[1]:note_column(1).panning_value
-    options.stereo_spread = math.abs(ss)
+    settings.stereo_spread.value = math.abs(ss)
     if ss >= 0 then
-      options.stereo_direction = "L ➔ R"
+      settings.stereo_direction.value = 1
     else
-      options.stereo_direction = "R ➔ L"
+      settings.stereo_direction.value = 2
     end
-    options.glide = phrase.lines[1]:effect_column(1).amount_value
+    settings.glide.value = phrase.lines[1]:effect_column(1).amount_value
   else
-    --load default options
-    show_status(("Loading default options"))
+    --load default settings
+    show_status(("Loading default settings"))
 
-    options.offset = 0x00
-    options.vol_min = 0x80
-    options.vol_max = 0x80
-    options.stereo_spread = 0x00
-    options.stereo_direction = "L ➔ R"
-    options.glide = 0xff
+    settings.offset.value = 0x00
+    settings.vol_min.value = 0x80
+    settings.vol_max.value = 0x80
+    settings.stereo_spread.value = 0x00
+    settings.stereo_direction.value = 1
+    settings.glide.value = 0xff
+    settings.speed.value = 3
   end
 end
 
 --arp making functions
 function make_arps(instrument)
-  --show_status(string.format("making arps! options are: %d, %d, %d, %d, %d, %d", options.selected_instrument, options.vol_min, options.vol_max, options.pan_min, options.pan_max, options.glide))
+  --show_status(string.format("making arps! settings are: %d, %d, %d, %d, %d, %d", settings.selected_instrument, settings.vol_min, settings.vol_max, settings.pan_min, settings.pan_max, settings.glide))
 
   --make sure there are enough empty phrases for this instrument
   create_phrases(instrument)
@@ -227,7 +217,7 @@ end
 
 --initialize this instrument with the max number of phrases
 function create_phrases(instrument)
-  --local instrument = renoise.song():instrument(options.selected_instrument + 1)
+  --local instrument = renoise.song():instrument(settings.selected_instrument + 1)
   local initial_phrases = count_phrases(instrument)
 
   --create the max number of phrases
@@ -241,7 +231,7 @@ function construct_phrase(instrument, phrase_number)
   show_status(string.format("Constructing phrase %d for %s...", phrase_number, instrument.name))
 
   --get the instrument
-  --local instrument = renoise.song():instrument(options.selected_instrument + 1)
+  --local instrument = renoise.song():instrument(settings.selected_instrument + 1)
 
   --get the phrase and clear it
   local phrase = instrument:phrase(phrase_number + 1)
@@ -251,67 +241,68 @@ function construct_phrase(instrument, phrase_number)
   phrase.number_of_lines = 6
   phrase.visible_note_columns = 1
   phrase.visible_effect_columns = 1
-  phrase.looping = true
+  phrase.looping = settings.loop.value
   phrase.autoseek = true
   phrase.panning_column_visible = true
   phrase.sample_effects_column_visible = true
+  phrase.lpb = renoise.song().transport.lpb * settings.speed.value
 
   local stereo_mul = 1
-  if options.stereo_direction == "R ➔ L" then
+  if settings.stereo_direction.value == 2 then
     stereo_mul = -1
   end
 
   --note 1: root note
   phrase.lines[1]:note_column(1).note_value = 49
   --vol, pan
-  phrase.lines[1]:note_column(1).volume_value = options.vol_min
-  phrase.lines[1]:note_column(1).panning_value = 0x40 - (stereo_mul * options.stereo_spread)
+  phrase.lines[1]:note_column(1).volume_value = settings.vol_min.value
+  phrase.lines[1]:note_column(1).panning_value = 0x40 - (stereo_mul * settings.stereo_spread.value)
   --sample offset
   phrase.lines[1].note_columns[1].effect_number_string = '0S'
-  phrase.lines[1].note_columns[1].effect_amount_value = options.offset
-  if options.glide > 0 then
+  phrase.lines[1].note_columns[1].effect_amount_value = settings.offset.value
+  if settings.glide.value > 0 then
     --glide
     phrase.lines[1]:effect_column(1).number_string = '0G'
-    phrase.lines[1]:effect_column(1).amount_value = options.glide
+    phrase.lines[1]:effect_column(1).amount_value = settings.glide.value
   end
 
   --note 2: first arp note
   local note2 = math.floor(phrase_number / 16)
   phrase.lines[3]:note_column(1).note_value = 49 + note2
   --vol, pan
-  phrase.lines[3]:note_column(1).volume_value = math.floor(lerp(options.vol_min, options.vol_max, .5))
+  phrase.lines[3]:note_column(1).volume_value = math.floor(lerp(settings.vol_min.value, settings.vol_max.value, .5))
   phrase.lines[3]:note_column(1).panning_value = 0x40
-  if options.glide > 0 then
+  if settings.glide.value > 0 then
     --glide
     phrase.lines[3]:effect_column(1).number_string = '0G'
-    phrase.lines[3]:effect_column(1).amount_value = options.glide
+    phrase.lines[3]:effect_column(1).amount_value = settings.glide.value
   else
     --sample offset
     phrase.lines[3].note_columns[1].effect_number_string = '0S'
-    phrase.lines[3].note_columns[1].effect_amount_value = options.offset
+    phrase.lines[3].note_columns[1].effect_amount_value = settings.offset.value
   end
 
   --note 3: second arp note
   local note3 = phrase_number % 16
   phrase.lines[5]:note_column(1).note_value = 49 + note3
   --vol, pan
-  phrase.lines[5]:note_column(1).volume_value = options.vol_max
-  phrase.lines[5]:note_column(1).panning_value = 0x40 + (stereo_mul * options.stereo_spread)
-  if options.glide > 0 then
+  phrase.lines[5]:note_column(1).volume_value = settings.vol_max.value
+  phrase.lines[5]:note_column(1).panning_value = 0x40 + (stereo_mul * settings.stereo_spread.value)
+  if settings.glide.value > 0 then
     --glide
     phrase.lines[5]:effect_column(1).number_string = '0G'
-    phrase.lines[5]:effect_column(1).amount_value = options.glide
+    phrase.lines[5]:effect_column(1).amount_value = settings.glide.value
   else
     --sample offset
     phrase.lines[5].note_columns[1].effect_number_string = '0S'
-    phrase.lines[5].note_columns[1].effect_amount_value = options.offset
+    phrase.lines[5].note_columns[1].effect_amount_value = settings.offset.value
   end
 end
 
 -- show_tool_window
 function show_tool_window()
 
-  load_options(renoise.song():instrument(options.selected_instrument + 1))
+  load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
 
   local vb = renoise.ViewBuilder()
 
@@ -353,12 +344,11 @@ function show_tool_window()
     },
 
     vb:valuebox {
+      bind = settings.selected_instrument,
       id = "instrument",
       min = 0,
       max = count_instruments() - 1,
-      --initialize to the currently selected instrument
-      --selected_instrument_index is the selected instrument's number + 1
-      value = renoise.song().selected_instrument_index - 1,
+      steps = {0x01, 0x10},
 
       tostring = function(value) 
         return ("%.2X"):format(value)
@@ -366,13 +356,6 @@ function show_tool_window()
 
       tonumber = function(str) 
         return tonumber(str, 0x10)
-      end,
-
-      notifier = function(value)
-        options.selected_instrument = value
-
-        show_status(("Selected instrument '%d'"):
-          format(options.selected_instrument))
       end
     }
   }
@@ -380,7 +363,7 @@ function show_tool_window()
   local instrument_namebox = vb:row{
     vb:text{
       width = TEXT_ROW_WIDTH,
-      text = ("[%s]"):format(renoise.song():instrument(vb.views.instrument.value + 1).name)
+      text = ("[%s]"):format(renoise.song():instrument(settings.selected_instrument.value + 1).name)
     }
   }
 
@@ -391,9 +374,10 @@ function show_tool_window()
     },
 
     vb:valuebox{
+      bind = settings.offset,
       min = 0,
       max = 0xff,
-      value = 0,
+      steps = {0x08, 0x10},
 
       tostring = function(value) 
         return ("0x%.2X"):format(value)
@@ -401,12 +385,6 @@ function show_tool_window()
 
       tonumber = function(str) 
         return tonumber(str, 0x10)
-      end,
-
-      notifier = function(value)
-        options.offset = value
-
-        show_status(("Sample offset is '%d'"):format(options.offset))
       end
     }
   }
@@ -418,17 +396,11 @@ function show_tool_window()
     },
 
     vb:slider{
+      bind = settings.vol_min,
       min = 0,
       max = 0x80,
       default = 0x80,
-      value = options.vol_min,
-
-      notifier = function(value)
-        options.vol_min = value
-
-        show_status(("Starting volume is '%d'"):
-          format(options.vol_min))
-      end
+      steps = {0x08, 0x10}
     }
   }
 
@@ -439,17 +411,11 @@ function show_tool_window()
     },
 
     vb:slider{
+      bind = settings.vol_max,
       min = 0,
       max = 0x80,
       default = 0x80,
-      value = options.vol_max,
-
-      notifier = function(value)
-        options.vol_max = value
-
-        show_status(("Ending volume is '%d'"):
-          format(options.vol_max))
-      end
+      steps = {0x08, 0x10}
     }
   }
 
@@ -460,45 +426,25 @@ function show_tool_window()
     },
 
     vb:slider{
+      bind = settings.stereo_spread,
       min = 0,
       max = 0x40,
       default = 0x00,
-      value = options.stereo_spread,
-
-      notifier = function(value)
-        options.stereo_spread = value
-
-        show_status(("Stereo spread is '%d'"):
-          format(options.stereo_spread))
-      end
-    },
+      steps = {0x08, 0x10}
+    }
   }
 
-  local init_ss_value = 1
-  if options.stereo_direction == "R ➔ L" then
-    init_ss_value = 2
-  end
-
   local stereo_direction = vb:row{
-
     vb:text{
       width = TEXT_ROW_WIDTH,
       text = "Stereo Direction"
     },
 --
     vb:switch{
+      bind = settings.stereo_direction,
       id = "stereo_direction",
-      value = init_ss_value,
       width = 100,
-      items = {"L ➔ R", "R ➔ L"},
-
-      notifier = function(index)
-        local switch = vb.views.stereo_direction
-        options.stereo_direction = switch.items[index]
-
-        show_status(("Stereo direction is '%s'"):
-          format(options.stereo_direction))
-      end
+      items = {direction_arrow(1), direction_arrow(2)}
     }
   }
 
@@ -507,18 +453,38 @@ function show_tool_window()
       width = TEXT_ROW_WIDTH,
       text = "Glide"
     },
+
     vb:slider{
+      bind = settings.glide,
       min = 0, 
       max = 0xff,
       default = 0xff,
-      value = options.glide,
+      steps = {0x10, 0xff}
+    }
+  }
 
-      notifier = function(value)
-        options.glide = value
+  local speed_valuebox = vb:row{
+    vb:text{
+      width = TEXT_ROW_WIDTH,
+      text = "Speed"
+    },
 
-        show_status(("Glide is '%d'"):
-          format(options.glide))
-      end
+    vb:valuebox{
+      bind = settings.speed,
+      min = 1,
+      max = 9,
+      steps = {1, 3}
+    }
+  }
+
+  local loop_checkbox = vb:row{
+    vb:text{
+      width = TEXT_ROW_WIDTH,
+      text = "Loop"
+    },
+
+    vb:checkbox{
+      bind = settings.loop
     }
   }
 
@@ -531,7 +497,7 @@ function show_tool_window()
       width = 60,
       height = DEFAULT_DIALOG_BUTTON_HEIGHT,
       released = function()
-        make_arps(renoise.song():instrument(options.selected_instrument + 1))
+        make_arps(renoise.song():instrument(settings.selected_instrument.value + 1))
       end,
     },
 
@@ -540,7 +506,7 @@ function show_tool_window()
       width = 60,
       height = DEFAULT_DIALOG_BUTTON_HEIGHT,
       released = function()
-        load_options(renoise.song():instrument(options.selected_instrument + 1))
+        load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
       end,
     },
 
@@ -567,7 +533,7 @@ function show_tool_window()
         spacing = CONTENT_SPACING,
         
         instrument_valuebox,
-        instrument_namebox,
+        --instrument_namebox,
 
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         offset_valuebox,
@@ -583,7 +549,9 @@ function show_tool_window()
         vb:space {height = DEFAULT_CONTROL_HEIGHT},
         glide_slider,
 
-        vb:space {height = DEFAULT_CONTROL_HEIGHT}
+        vb:space {height = DEFAULT_CONTROL_HEIGHT},
+        speed_valuebox,
+        loop_checkbox
       },
 
     },
@@ -593,8 +561,7 @@ function show_tool_window()
   }
   
   --set some default values on start
-  options.selected_instrument = renoise.song().selected_instrument_index - 1
-  options.lpb = renoise.song().transport.lpb * 3
+  settings.selected_instrument.value = renoise.song().selected_instrument_index - 1
 
   -- DIALOG
   
