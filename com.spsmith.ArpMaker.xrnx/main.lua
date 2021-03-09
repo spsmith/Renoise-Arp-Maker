@@ -74,12 +74,20 @@ local function selected_instrument_notifier()
   load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
 end
 
-local function mode_notifier()
-  show_status(("Mode is %s (%d)"):format(mode_arrow(settings.mode.value), settings.mode.value))
-end
-
 settings.selected_instrument:add_notifier(selected_instrument_notifier)
-settings.mode:add_notifier(mode_notifier)
+
+function add_notifiers()
+  settings.offset:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.length:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.mode:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.vol_min:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.vol_max:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.stereo_spread:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.stereo_direction:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.glide:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.speed:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+  settings.loop:add_notifier(make_arps(renoise.song():instrument(settings.selected_instrument.value + 1)))
+end
 
 --------------------------------------------------------------------------------
 -- menu entries
@@ -98,6 +106,7 @@ renoise.tool():add_menu_entry {
   name = "Main Menu:Tools:ArpMaker",
   invoke = function()
     load_settings(renoise.song():instrument(settings.selected_instrument.value + 1))
+    --add_notifiers()
     show_tool_window()
   end
 }
@@ -175,6 +184,15 @@ function load_settings(instrument)
 end
 
 --arp making functions
+function clear_arps(instrument)
+  --small sanity check
+  if count_phrases(instrument) == renoise.Instrument.MAX_NUMBER_OF_PHRASES then
+    for i = renoise.Instrument.MAX_NUMBER_OF_PHRASES, 1 do
+      instrument:delete_phrase_at(i)
+    end
+  end
+end
+
 function make_arps(instrument)
   --make sure there are enough empty phrases for this instrument
   create_phrases(instrument)
