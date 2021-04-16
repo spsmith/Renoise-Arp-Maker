@@ -1,10 +1,20 @@
 # Renoise Arp Maker
 
-Simple Renoise tool for generating chiptune-style arpeggios using the phrase editor. Serves as a replacement for the `Axx` effect, which is broken at higher lines-per-beat values.
+![Options screen](Renoise_8xIrZ6impo.png)
+
+Simple Renoise tool for generating chiptune-style arpeggios using the phrase editor. Serves as a replacement for the `Axx` command, which is broken at higher lines-per-beat values.
+
+# Installation
+
+Download the latest release. Just drag and drop the XRNX file into Renoise and the tool will be installed. For more details, see the [Renoise Tools page](https://www.renoise.com/tools).
+
+# Usage
+
+The tool can be found in the `Tools\ArpMaker` menu entry. With the tool window open, select the instrument you wish to use. Adjust the options and press `Apply` to generate arpeggios as phrases. In the pattern editor, use the `Zxx` command to specify which arpeggio phrase to play. For example, the `Z37` command will play a 037 arpeggio. This notation is the same as for the existing `Axx` command.
+
+**Note:** using this tool will overwrite all existing phrases for the selected instrument. If you accidentally apply arpeggios to the wrong instrument, just press `Undo` to restore the original phrases.
 
 # Options
-
-![Options screen](Renoise_8xIrZ6impo.png)
 
 Several options are available for adjusting the properties of the generated arpeggio. These include:
 
