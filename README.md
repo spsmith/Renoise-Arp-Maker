@@ -12,7 +12,7 @@ Download the latest release. Just drag and drop the XRNX file into Renoise and t
 
 The tool can be found in the `Tools\ArpMaker` menu entry. With the tool window open, select the instrument you wish to use. Adjust the options and press `Apply` to generate arpeggios as phrases. In the pattern editor, use the `Zxx` command to specify which arpeggio phrase to play. For example, the `Z37` command will play a 037 arpeggio. This notation is the same as for the existing `Axx` command.
 
-![Phrase example](Renoise_3ogRBkR4Ot.png)
+![Phrase example](Renoise_3ogRBkR4Ot.png)  
 *Example of an arpeggio phrase*
 
 **Note:** using this tool will overwrite all existing phrases for the selected instrument. If you accidentally apply arpeggios to the wrong instrument, just press `Undo` to restore the original phrases.
