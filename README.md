@@ -19,5 +19,5 @@ Several options are available for adjusting the properties of the generated arpe
 | Stereo Direction | Specifies whether the notes of the arpeggio will pan from left to right, or from right to left. | `L → R` or `L ← R` |
 | Notes | Number of notes in the arpeggio before it either loops or ends. | `3 - 12` |
 | Mode | Specifies whether the pitch of notes in the arpeggio will rise, fall, or rise and then fall. | `→`, `←`, or `⟷` |
-| Speed | Speed of the arpeggio, specified as a multiplier of the default lines per beat of the song. This will use the current value in the `LPB` field when the arpeggio is created. | `1 - 9` |
+| Speed | Speed of the arpeggio, specified as a multiplier of the default lines per beat of the song. This will use the current value in the `LPB` field when the arpeggio is created. | `1x - 9x` |
 | Loop | Specifies whether the arpeggio should loop or not.  | Loop `on` or `off` |
