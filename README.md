@@ -10,7 +10,7 @@ Several options are available for adjusting the properties of the generated arpe
 
 | Name | Description | Values |
 | --- | --- | --- |
-| Instrument | Select the instrument that will have arpeggios generated. | `Any instrument number` |
+| Instrument | Select the instrument that will have arpeggios generated. | Any instrument number |
 | Sample Offset | The Sample Offset value that will be applied to each note in the arpeggio. If Glide is active, offset will only apply to the first note. Same as the `Sxx` command. | `0x00 - 0xFF` |
 | Glide | The Glide value that will be applied to each note in the arpeggio. Set to `0` to disable glide altogether. Same as the `Gxx` command. | `0 - 255` |
 | Volume (start) | Volume of the first note in the arpeggio. Notes between start and end will use an interpolated volume value. | `0 - 80` |
