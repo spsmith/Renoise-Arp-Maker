@@ -6,7 +6,7 @@ Simple Renoise tool for generating chiptune-style arpeggios using the phrase edi
 
 # Installation
 
-Download the latest release. Just drag and drop the XRNX file into Renoise and the tool will be installed. For more details, see the [Renoise Tools page](https://www.renoise.com/tools).
+Download the latest release. Drag and drop the main folder into Renoise and the tool will be installed. For more details, see the [Renoise Tools page](https://www.renoise.com/tools).
 
 # Usage
 
